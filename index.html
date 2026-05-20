@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
 <title>Reading Coach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -184,6 +187,10 @@ input[type=file] { display: none; }
     </div>
     <h1>Reading Coach</h1>
     <p>An AI tutor that evaluates book reports, gives friendly feedback, and tracks progress over time. Enter your Anthropic API key to get started — it's saved only on this device.</p>
+    <label class="field-label" for="student-name-input">Student name</label>
+    <input type="text" id="student-name-input" placeholder="e.g. Maya" autocomplete="off" style="margin-bottom:6px">
+    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Used to identify this student's reports in Google Sheets. Required if sharing a Sheet across multiple students.</p>
+
     <label class="field-label" for="api-key-input">Anthropic API key</label>
     <div class="api-input-wrap">
       <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -222,21 +229,21 @@ input[type=file] { display: none; }
     var sheet = SpreadsheetApp.getActiveSpreadsheet()
                   .getActiveSheet();
 
-    // Add header row if sheet is empty
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
-        'Date', 'Book', 'Author',
+        'Name', 'Date', 'Book', 'Author',
         'Overall', 'Comprehension',
         'Language', 'Structure', 'Mechanics',
         'Summary', 'Top Tips', 'Weekly Challenge'
       ]);
-      sheet.getRange(1, 1, 1, 11)
+      sheet.getRange(1, 1, 1, 12)
            .setFontWeight('bold')
            .setBackground('#E8F5E9');
     }
 
+    var name = data.name || 'Unknown';
     sheet.appendRow([
-      data.date, data.title, data.author,
+      name, data.date, data.title, data.author,
       data.overall,
       data.comprehension, data.language,
       data.structure, data.mechanics,
@@ -251,6 +258,56 @@ input[type=file] { display: none; }
   } catch(err) {
     return ContentService
       .createTextOutput(JSON.stringify({status:'error',msg:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  try {
+    var action = e.parameter.action || 'get';
+    var name = e.parameter.name || '';
+    var sheet = SpreadsheetApp.getActiveSpreadsheet()
+                  .getActiveSheet();
+
+    // DELETE rows for a student
+    if (action === 'delete' && name) {
+      var rows = sheet.getDataRange().getValues();
+      for (var i = rows.length - 1; i >= 1; i--) {
+        if (rows[i][0] && rows[i][0].toString().toLowerCase() === name.toLowerCase()) {
+          sheet.deleteRow(i + 1);
+        }
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({status:'deleted'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // GET rows for a student
+    var rows = sheet.getDataRange().getValues();
+    if (rows.length <= 1) {
+      return ContentService
+        .createTextOutput(JSON.stringify([]))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var results = [];
+    for (var i = 1; i < rows.length; i++) {
+      var row = rows[i];
+      var rowName = row[0] ? row[0].toString() : '';
+      if (name && rowName.toLowerCase() !== name.toLowerCase()) continue;
+      results.push({
+        name: row[0], date: row[1], title: row[2],
+        author: row[3], overall: row[4],
+        comprehension: row[5], language: row[6],
+        structure: row[7], mechanics: row[8],
+        summary: row[9]
+      });
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify(results))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({error:err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }</pre>
@@ -277,11 +334,17 @@ input[type=file] { display: none; }
       <div class="app-icon">
         <svg viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
       </div>
-      <span class="app-title">Reading Coach</span>
+      <div>
+        <span class="app-title">Reading Coach</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:7px">v3.3</span>
+      </div>
     </div>
-    <button class="settings-btn" onclick="openSettings()" title="Settings">
-      <svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="name-badge" style="font-size:12px;color:var(--accent);background:var(--accent-light);padding:3px 9px;border-radius:10px;display:none"></span>
+      <button class="settings-btn" onclick="openSettings()" title="Settings">
+        <svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
   </div>
 
   <div class="tabs">
@@ -353,7 +416,7 @@ input[type=file] { display: none; }
     </div>
 
     <div class="eval-row">
-      <button class="btn-eval" id="eval-btn" onclick="evaluate()">
+      <button class="btn-eval" id="eval-btn">
         <div class="spinner" id="spinner"></div>
         <svg id="wand-icon" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M15 4V2m0 14v-2M8 9H2m14 0h-2M13.8 6.2l-1.4-1.4M10.6 17.4l-1.4-1.4M17.4 13.8l1.4 1.4M6.2 10.6L4.8 9.2"/><path d="m3 21 9-9"/></svg>
         Evaluate report
@@ -375,14 +438,17 @@ input[type=file] { display: none; }
 const STORAGE_KEY = 'reading-coach-history-v1';
 const API_KEY_STORAGE = 'reading-coach-api-key';
 const SHEETS_URL_STORAGE = 'reading-coach-sheets-url';
+const STUDENT_NAME_STORAGE = 'reading-coach-student-name';
 let currentMode = 'type';
-let pages = []; // array of {base64, mime, dataUrl}
+let pages = [];
 let progressChart = null;
 
 function loadKey() { return localStorage.getItem(API_KEY_STORAGE) || ''; }
 function saveKeyToStorage(k) { localStorage.setItem(API_KEY_STORAGE, k); }
 function loadSheetsUrl() { return localStorage.getItem(SHEETS_URL_STORAGE) || ''; }
 function saveSheetsUrl(u) { if (u) localStorage.setItem(SHEETS_URL_STORAGE, u); else localStorage.removeItem(SHEETS_URL_STORAGE); }
+function loadStudentName() { return localStorage.getItem(STUDENT_NAME_STORAGE) || ''; }
+function saveStudentName(n) { if (n) localStorage.setItem(STUDENT_NAME_STORAGE, n); else localStorage.removeItem(STUDENT_NAME_STORAGE); }
 function loadHistory() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
 function saveHistory(h) { localStorage.setItem(STORAGE_KEY, JSON.stringify(h)); }
 
@@ -394,13 +460,14 @@ function copyScript() {
 
 async function postToSheets(entry, result) {
   const url = loadSheetsUrl();
-  if (!url) return; // silently skip if not configured
+  if (!url) return;
   try {
     await fetch(url, {
       method: 'POST',
-      mode: 'no-cors', // Apps Script requires no-cors from external origins
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: loadStudentName() || 'Student',
         date: new Date(entry.date).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
         title: entry.title,
         author: entry.author,
@@ -424,18 +491,28 @@ function toggleKeyVisibility() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
+function updateNameBadge() {
+  var n = loadStudentName();
+  var badge = document.getElementById('name-badge');
+  if (n && badge) { badge.textContent = n; badge.style.display = 'inline'; }
+  else if (badge) { badge.style.display = 'none'; }
+}
+
 function saveKey() {
   const k = document.getElementById('api-key-input').value.trim();
   if (!k.startsWith('sk-')) { document.getElementById('key-error').style.display = 'block'; return; }
   saveKeyToStorage(k);
   saveSheetsUrl(document.getElementById('sheets-url-input').value.trim());
+  saveStudentName(document.getElementById('student-name-input').value.trim());
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'block';
+  updateNameBadge();
 }
 
 function openSettings() {
   document.getElementById('api-key-input').value = loadKey();
   document.getElementById('sheets-url-input').value = loadSheetsUrl();
+  document.getElementById('student-name-input').value = loadStudentName();
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('main-app').style.display = 'none';
 }
@@ -504,33 +581,42 @@ function removePage(idx) {
 }
 
 function renderPagesGrid() {
-  const grid = document.getElementById('pages-grid');
-  const label = document.getElementById('pages-label');
-  const hint = document.getElementById('pages-hint');
-  const n = pages.length;
-  label.textContent = `${n} page${n !== 1 ? 's' : ''} added`;
-  hint.textContent = n > 1 ? `Pages will be read in order (1 → ${n}) — make sure they're in the right sequence.` : 'Add more pages if the report continues on another sheet.';
+  var grid = document.getElementById('pages-grid');
+  var label = document.getElementById('pages-label');
+  var hint = document.getElementById('pages-hint');
+  var n = pages.length;
+  label.textContent = n + ' page' + (n !== 1 ? 's' : '') + ' added';
+  hint.textContent = n > 1 ? 'Pages will be read in order (1 \u2192 ' + n + ') \u2014 make sure they\'re in the right sequence.' : 'Add more pages if the report continues on another sheet.';
   grid.innerHTML = '';
-  pages.forEach((p, i) => {
-    const div = document.createElement('div');
+  for (var i = 0; i < pages.length; i++) {
+    var p = pages[i];
+    var div = document.createElement('div');
     div.className = 'page-thumb';
-    div.innerHTML = `
-      <img src="${p.dataUrl}" alt="Page ${i+1}">
-      <span class="page-num">Page ${i+1}</span>
-      <button class="page-remove" onclick="removePage(${i})" title="Remove page">×</button>`;
+    div.innerHTML = '<img src="' + p.dataUrl + '" alt="Page ' + (i+1) + '">'
+      + '<span class="page-num">Page ' + (i+1) + '</span>'
+      + '<button class="page-remove" onclick="removePage(' + i + ')" title="Remove page">\xd7</button>';
     grid.appendChild(div);
-  });
+  }
 }
 
-// Drag and drop on drop zone
-const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-dz.addEventListener('drop', async e => {
-  e.preventDefault(); dz.classList.remove('dragover');
-  const f = e.dataTransfer.files[0];
-  if (f) { const data = await readFileAsBase64(f); pages.push(data); dz.style.display = 'none'; document.getElementById('pages-area').style.display = 'block'; renderPagesGrid(); }
-});
+// Drag and drop on drop zone — deferred until DOM ready
+function initDropZone() {
+  // Wire up buttons via addEventListener (Safari-safe, avoids inline onclick issues)
+  document.getElementById('eval-btn').addEventListener('click', function(e) {
+    e.preventDefault();
+    evaluate();
+  });
+
+  const dz = document.getElementById('drop-zone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', async e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) { const data = await readFileAsBase64(f); pages.push(data); dz.style.display = 'none'; document.getElementById('pages-area').style.display = 'block'; renderPagesGrid(); }
+  });
+}
 
 function clearForm() {
   document.getElementById('btitle').value = '';
@@ -562,49 +648,57 @@ async function evaluate() {
   btn.disabled = true;
   document.getElementById('spinner').style.display = 'block';
   document.getElementById('wand-icon').style.display = 'none';
-  const pageWord = pages.length > 1 ? `${pages.length} pages` : 'photo';
-  setStatus(currentMode === 'photo' ? `Reading ${pageWord} and analyzing… this may take 15–30 seconds.` : 'Analyzing… this may take 10–20 seconds.');
+  var pageWord = (currentMode === 'photo' && pages.length > 1) ? (pages.length + ' pages') : 'photo';
+  setStatus(currentMode === 'photo' ? ('Reading ' + pageWord + ' and analyzing\u2026 this may take 15\u201330 seconds.') : 'Analyzing\u2026 this may take 10\u201320 seconds.');
   document.getElementById('result-area').innerHTML = '';
 
-  const systemPrompt = `You are a warm, encouraging reading and ELA tutor evaluating a 10-year-old student's book report. The student is at the 78th percentile on their EOG test. Their main weakness is answering passage-based questions (inference, cause-and-effect, character motivation). Your job is to give a detailed, friendly, and actionable evaluation.${currentMode === 'photo' ? ` The report was submitted as ${pages.length > 1 ? pages.length + ' photos (one per page) in order' : 'a photo'}. Carefully read ALL handwritten or printed text across every image before evaluating. Treat them as one continuous report.` : ''}
+  var photoNote = '';
+  if (currentMode === 'photo') {
+    photoNote = ' The report was submitted as ' + (pages.length > 1 ? pages.length + ' photos (one per page) in order' : 'a photo') + '. Carefully read ALL handwritten or printed text across every image before evaluating. Treat them as one continuous report.';
+  }
 
-Evaluate across 4 skill dimensions, score each 0–100:
-1. Comprehension & Passage Response (MOST important): understanding events, why characters act as they do, cause-and-effect, inference — the skills needed to answer passage questions on tests.
-2. Language & Vocabulary: word choice, descriptive richness, sentence variety.
-3. Writing Structure & Organization: clear intro/body/conclusion, logical flow.
-4. Mechanics & Grammar: spelling, punctuation, grammar accuracy.
+  var bookContext = (title && title !== 'Unknown')
+    ? 'The book being reported on is "' + title + '"' + (author && author !== 'Unknown' ? ' by ' + author : '') + '. Use your knowledge of this specific book to evaluate the report — check whether the student mentions key characters, major plot events, central themes, and important cause-and-effect moments from the actual story. Call out specifically what they missed or got right about THIS book. If you recognize the book, name specific characters, scenes, or moments in your feedback. If you don\'t recognize the book, evaluate based solely on what the student wrote.'
+    : 'No book title was provided. Evaluate based solely on what the student wrote.';
 
-Respond ONLY with valid JSON (no markdown fences, no preamble):
-{"overall":<0-100>,"scores":{"comprehension":<0-100>,"language":<0-100>,"structure":<0-100>,"mechanics":<0-100>},"summary":"<2-3 warm encouraging sentences>","comprehension_feedback":"<2-3 specific sentences>","language_feedback":"<2-3 specific sentences>","structure_feedback":"<2-3 specific sentences>","mechanics_feedback":"<1-2 sentences>","top_tips":["<tip 1 for a 10-year-old>","<tip 2>","<tip 3>"],"weekly_challenge":"<short fun exercise to practice passage-answering>","encouragement":"<one warm final sentence>"}`;
-
-  let userContent;
+  var systemPrompt = 'You are a warm, encouraging reading and ELA tutor evaluating a 10-year-old student\'s book report. The student is at the 78th percentile on their EOG test. Their main weakness is answering passage-based questions (inference, cause-and-effect, character motivation). Your job is to give a detailed, friendly, and actionable evaluation.' + photoNote + '\n\n' + bookContext + '\n\nEvaluate across 4 skill dimensions, score each 0\u2013100:\n1. Comprehension & Passage Response (MOST important): understanding events, why characters act as they do, cause-and-effect, inference \u2014 the skills needed to answer passage questions on tests. Use your knowledge of the actual book to judge whether the student addressed the key moments.\n2. Language & Vocabulary: word choice, descriptive richness, sentence variety.\n3. Writing Structure & Organization: clear intro/body/conclusion, logical flow.\n4. Mechanics & Grammar: spelling, punctuation, grammar accuracy.\n\nRespond ONLY with valid JSON (no markdown fences, no preamble):\n{"overall":<0-100>,"scores":{"comprehension":<0-100>,"language":<0-100>,"structure":<0-100>,"mechanics":<0-100>},"summary":"<2-3 warm encouraging sentences>","comprehension_feedback":"<2-3 specific sentences referencing actual book events/characters where possible>","language_feedback":"<2-3 specific sentences>","structure_feedback":"<2-3 specific sentences>","mechanics_feedback":"<1-2 sentences>","spelling_corrections":[{"wrong":"<misspelled word>","right":"<correct spelling>"}],"top_tips":["<tip 1>","<tip 2>","<tip 3>"],"weekly_challenge":"<short fun exercise>","encouragement":"<one warm final sentence>"}\n\nFor spelling_corrections: list EVERY misspelled word found. If none, return [].';
+  var userContent;
   if (currentMode === 'photo') {
     userContent = [];
-    pages.forEach((p, i) => {
-      userContent.push({ type: 'image', source: { type: 'base64', media_type: p.mime, data: p.base64 } });
-      userContent.push({ type: 'text', text: pages.length > 1 ? `[Page ${i+1} of ${pages.length}]` : '' });
-    });
-    userContent.push({ type: 'text', text: `Book: "${title || 'Unknown'}" by ${author || 'Unknown'}. Please read all the text across the ${pages.length > 1 ? pages.length + ' pages' : 'page'} above and evaluate the book report.` });
+    for (var pi = 0; pi < pages.length; pi++) {
+      var pg = pages[pi];
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: pg.mime, data: pg.base64 } });
+      userContent.push({ type: 'text', text: pages.length > 1 ? '[Page ' + (pi+1) + ' of ' + pages.length + ']' : '' });
+    }
+    userContent.push({ type: 'text', text: 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + '. Please read all the text across the ' + (pages.length > 1 ? pages.length + ' pages' : 'page') + ' above and evaluate the book report.' });
   } else {
-    userContent = `Book: "${title || 'Unknown'}" by ${author || 'Unknown'}\n\nBook report:\n"""\n${reportText}\n"""`;
+    userContent = 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + '\n\nBook report:\n"""\n' + reportText + '\n"""';
   }
 
   try {
+    const reqHeaders = new Headers();
+    reqHeaders.append('Content-Type', 'application/json');
+    reqHeaders.append('x-api-key', apiKey);
+    reqHeaders.append('anthropic-version', '2023-06-01');
+    reqHeaders.append('anthropic-dangerous-direct-browser-access', 'true');
+
+    const reqBody = JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 1200,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }]
+    });
+
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1200, system: systemPrompt, messages: [{ role: 'user', content: userContent }] })
+      headers: reqHeaders,
+      body: reqBody
     });
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       if (resp.status === 401) throw new Error('Invalid API key. Tap the ⚙ icon to update it.');
-      throw new Error(err.error?.message || `API error ${resp.status}`);
+      throw new Error(err.error?.message || ('API error ' + resp.status));
     }
 
     const data = await resp.json();
@@ -621,7 +715,7 @@ Respond ONLY with valid JSON (no markdown fences, no preamble):
     renderResult(parsed, entry.title, entry.author, entry.date);
   } catch (err) {
     setStatus('');
-    document.getElementById('result-area').innerHTML = `<p style="font-size:14px;color:var(--red);margin-top:1rem;padding:12px;border:1px solid rgba(200,64,64,0.2);border-radius:8px">Error: ${err.message}</p>`;
+    document.getElementById('result-area').innerHTML = '<p style="font-size:14px;color:var(--red);margin-top:1rem;padding:12px;border:1px solid rgba(200,64,64,0.2);border-radius:8px">Error: ' + err.message + '</p>';
   } finally {
     btn.disabled = false;
     document.getElementById('spinner').style.display = 'none';
@@ -629,118 +723,195 @@ Respond ONLY with valid JSON (no markdown fences, no preamble):
   }
 }
 
+function buildSpellingSection(corrections) {
+  if (!corrections || corrections.length === 0) return '';
+  var pills = '';
+  for (var i = 0; i < corrections.length; i++) {
+    var s = corrections[i];
+    pills += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;font-size:13px;display:flex;align-items:center;gap:8px">'
+           + '<span style="color:var(--red);text-decoration:line-through">' + esc(s.wrong) + '</span>'
+           + '<span style="color:var(--text3)">→</span>'
+           + '<span style="color:var(--green);font-weight:500">' + esc(s.right) + '</span>'
+           + '</div>';
+  }
+  return '<div class="fb-block">'
+       + '<div class="fb-title" style="color:var(--red)">'
+       + '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+       + 'Words to practice (' + corrections.length + ')'
+       + '</div>'
+       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">' + pills + '</div>'
+       + '</div>';
+}
+
 function renderResult(r, title, author, dateStr) {
-  const sc = r.scores;
-  const d = dateStr ? new Date(dateStr).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
-  document.getElementById('result-area').innerHTML = `
-<div class="result">
-  <div class="result-header">
-    <div><div class="result-title">${esc(title)}</div>${author ? `<div style="font-size:13px;color:var(--text2);margin-top:2px">${esc(author)}</div>` : ''}</div>
-    <div class="result-date">${d}</div>
-  </div>
-  <div class="scores-grid">
-    <div class="sc"><div class="sc-lbl">Comprehension</div><div class="sc-val ${scoreColor(sc.comprehension)}">${sc.comprehension}</div></div>
-    <div class="sc"><div class="sc-lbl">Language</div><div class="sc-val ${scoreColor(sc.language)}">${sc.language}</div></div>
-    <div class="sc"><div class="sc-lbl">Structure</div><div class="sc-val ${scoreColor(sc.structure)}">${sc.structure}</div></div>
-    <div class="sc"><div class="sc-lbl">Mechanics</div><div class="sc-val ${scoreColor(sc.mechanics)}">${sc.mechanics}</div></div>
-  </div>
-  <div class="overall-bar">
-    <span class="bar-lbl">Overall score</span>
-    <div class="bar-track"><div class="bar-fill" style="width:${r.overall}%;background:${barHex(r.overall)}"></div></div>
-    <span class="bar-num ${scoreColor(r.overall)}">${r.overall}/100</span>
-  </div>
-  <div class="summary-quote">${esc(r.summary)}</div>
-  <hr class="divider">
-  <div class="fb-block"><div class="fb-title" style="color:#2B6CB0"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Comprehension & passage skills</div><div class="fb-body">${esc(r.comprehension_feedback)}</div></div>
-  <div class="fb-block"><div class="fb-title" style="color:var(--green)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Language & vocabulary</div><div class="fb-body">${esc(r.language_feedback)}</div></div>
-  <div class="fb-block"><div class="fb-title" style="color:var(--amber)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Structure & organization</div><div class="fb-body">${esc(r.structure_feedback)}</div></div>
-  <div class="fb-block"><div class="fb-title" style="color:var(--text2)"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Mechanics & grammar</div><div class="fb-body">${esc(r.mechanics_feedback)}</div></div>
-  <hr class="divider">
-  <div style="margin-bottom:1rem"><div class="fb-title" style="margin-bottom:10px;color:var(--blue)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Top 3 tips to improve</div>
-    <div class="tips-list">${r.top_tips.map(t => `<div class="tip"><div class="tip-dot"></div><span>${esc(t)}</span></div>`).join('')}</div>
-  </div>
-  <div style="margin-bottom:0"><div class="fb-title" style="margin-bottom:8px;color:var(--amber)"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>This week's challenge</div>
-    <div class="challenge-box">${esc(r.weekly_challenge)}</div>
-  </div>
-  <div class="encourage-box">${esc(r.encouragement)}</div>
-</div>`;
+  var sc = r.scores;
+  var d = dateStr ? new Date(dateStr).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
+
+  var authorLine = author ? '<div style="font-size:13px;color:var(--text2);margin-top:2px">' + esc(author) + '</div>' : '';
+  var tipItems = '';
+  for (var i = 0; i < r.top_tips.length; i++) {
+    tipItems += '<div class="tip"><div class="tip-dot"></div><span>' + esc(r.top_tips[i]) + '</span></div>';
+  }
+
+  var html = '<div class="result">'
+    + '<div class="result-header">'
+    +   '<div><div class="result-title">' + esc(title) + '</div>' + authorLine + '</div>'
+    +   '<div class="result-date">' + d + '</div>'
+    + '</div>'
+    + '<div class="scores-grid">'
+    +   '<div class="sc"><div class="sc-lbl">Comprehension</div><div class="sc-val ' + scoreColor(sc.comprehension) + '">' + sc.comprehension + '</div></div>'
+    +   '<div class="sc"><div class="sc-lbl">Language</div><div class="sc-val ' + scoreColor(sc.language) + '">' + sc.language + '</div></div>'
+    +   '<div class="sc"><div class="sc-lbl">Structure</div><div class="sc-val ' + scoreColor(sc.structure) + '">' + sc.structure + '</div></div>'
+    +   '<div class="sc"><div class="sc-lbl">Mechanics</div><div class="sc-val ' + scoreColor(sc.mechanics) + '">' + sc.mechanics + '</div></div>'
+    + '</div>'
+    + '<div class="overall-bar">'
+    +   '<span class="bar-lbl">Overall score</span>'
+    +   '<div class="bar-track"><div class="bar-fill" style="width:' + r.overall + '%;background:' + barHex(r.overall) + '"></div></div>'
+    +   '<span class="bar-num ' + scoreColor(r.overall) + '">' + r.overall + '/100</span>'
+    + '</div>'
+    + '<div class="summary-quote">' + esc(r.summary) + '</div>'
+    + '<hr class="divider">'
+    + '<div class="fb-block"><div class="fb-title" style="color:#2B6CB0"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Comprehension &amp; passage skills</div><div class="fb-body">' + esc(r.comprehension_feedback) + '</div></div>'
+    + '<div class="fb-block"><div class="fb-title" style="color:var(--green)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Language &amp; vocabulary</div><div class="fb-body">' + esc(r.language_feedback) + '</div></div>'
+    + '<div class="fb-block"><div class="fb-title" style="color:var(--amber)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Structure &amp; organization</div><div class="fb-body">' + esc(r.structure_feedback) + '</div></div>'
+    + '<div class="fb-block"><div class="fb-title" style="color:var(--text2)"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Mechanics &amp; grammar</div><div class="fb-body">' + esc(r.mechanics_feedback) + '</div></div>'
+    + buildSpellingSection(r.spelling_corrections)
+    + '<hr class="divider">'
+    + '<div style="margin-bottom:1rem"><div class="fb-title" style="margin-bottom:10px;color:var(--blue)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Top 3 tips to improve</div>'
+    +   '<div class="tips-list">' + tipItems + '</div>'
+    + '</div>'
+    + '<div style="margin-bottom:0"><div class="fb-title" style="margin-bottom:8px;color:var(--amber)"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>This week\'s challenge</div>'
+    +   '<div class="challenge-box">' + esc(r.weekly_challenge) + '</div>'
+    + '</div>'
+    + '<div class="encourage-box">' + esc(r.encouragement) + '</div>'
+    + '</div>';
+
+  document.getElementById('result-area').innerHTML = html;
   document.getElementById('result-area').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function renderProgress() {
-  const el = document.getElementById('progress-content');
-  const history = loadHistory();
+async function renderProgress() {
+  var el = document.getElementById('progress-content');
+  el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Loading progress...</div>';
+  var sheetsUrl = loadSheetsUrl();
+  var studentName = loadStudentName();
+  var history = [];
+  var fromSheets = false;
+  if (sheetsUrl && studentName) {
+    try {
+      var resp = await fetch(sheetsUrl + '?name=' + encodeURIComponent(studentName));
+      var rows = await resp.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        fromSheets = true;
+        history = rows.map(function(r) {
+          return {
+            date: r.date ? r.date.toString() : '',
+            title: r.title || 'Book report',
+            author: r.author || '',
+            overall: Number(r.overall) || 0,
+            scores: { comprehension: Number(r.comprehension)||0, language: Number(r.language)||0, structure: Number(r.structure)||0, mechanics: Number(r.mechanics)||0 },
+            result: { summary: r.summary||'', top_tips:[], weekly_challenge:'', encouragement:'', comprehension_feedback:'', language_feedback:'', structure_feedback:'', mechanics_feedback:'', spelling_corrections:[], scores:{ comprehension:Number(r.comprehension)||0, language:Number(r.language)||0, structure:Number(r.structure)||0, mechanics:Number(r.mechanics)||0 }, overall:Number(r.overall)||0 }
+          };
+        });
+      }
+    } catch(err) { console.warn('Sheets load failed, using local:', err.message); }
+  }
+  if (!fromSheets) { history = loadHistory(); }
   if (!history.length) {
-    el.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>No reports yet. Submit your first book report to start tracking progress!</div>`;
+    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>No reports yet. Submit your first book report to start tracking progress!</div>';
     return;
   }
-  const latest = history[history.length - 1];
-  const prev = history.length >= 2 ? history[history.length - 2] : null;
-  function dv(key) { if (!prev) return null; return (key==='overall'?latest.overall:latest.scores[key])-(key==='overall'?prev.overall:prev.scores[key]); }
-  function badge(key) { const v=dv(key); if(v===null)return''; if(v>0)return`<span class="delta delta-up">+${v}</span>`; if(v<0)return`<span class="delta delta-dn">${v}</span>`; return`<span class="delta delta-eq">—</span>`; }
-  const labels = history.map(h => { const dt=new Date(h.date); return `${dt.getMonth()+1}/${dt.getDate()}`; });
-  el.innerHTML = `
-<p style="font-size:13px;color:var(--text2);margin-bottom:1rem">${history.length} report${history.length!==1?'s':''} submitted</p>
-<div class="stat-grid">
-  <div class="stat-card"><div class="stat-lbl">Overall</div><div class="stat-val ${scoreColor(latest.overall)}">${latest.overall} ${badge('overall')}</div></div>
-  <div class="stat-card"><div class="stat-lbl">Comprehension</div><div class="stat-val ${scoreColor(latest.scores.comprehension)}">${latest.scores.comprehension} ${badge('comprehension')}</div></div>
-  <div class="stat-card"><div class="stat-lbl">Language</div><div class="stat-val ${scoreColor(latest.scores.language)}">${latest.scores.language} ${badge('language')}</div></div>
-  <div class="stat-card"><div class="stat-lbl">Structure</div><div class="stat-val ${scoreColor(latest.scores.structure)}">${latest.scores.structure} ${badge('structure')}</div></div>
-</div>
-<div class="chart-legend">
-  <div class="legend-item"><div class="legend-dot" style="background:#2B6CB0"></div>Overall</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Comprehension</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#BA7517"></div>Language</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#9B59B6"></div>Structure</div>
-</div>
-<div class="chart-wrap"><canvas id="prog-chart" role="img" aria-label="Score history chart">Score history over ${history.length} reports.</canvas></div>
-<div class="hist-section-title">All reports</div>
-<div class="hist-list" id="hist-list"></div>
-<button class="btn-danger" onclick="confirmClear()">
-  <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-  Clear all history
-</button>`;
-
-  const histList = document.getElementById('hist-list');
-  [...history].reverse().forEach(h => {
-    const dt = new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const div = document.createElement('div');
-    div.className = 'hist-item';
-    div.innerHTML = `<div class="hist-meta"><div class="hist-book">${esc(h.title)}</div><div class="hist-badges"><span class="hbadge">Comp: ${h.scores.comprehension}</span><span class="hbadge">Lang: ${h.scores.language}</span><span class="hbadge">Struct: ${h.scores.structure}</span></div></div><div class="hist-right"><div class="hist-score ${scoreColor(h.overall)}">${h.overall}</div><div class="hist-date">${dt}</div></div>`;
-    div.onclick = () => { showTab('submit'); renderResult(h.result, h.title, h.author, h.date); window.scrollTo(0,0); };
+  var latest = history[history.length - 1];
+  var prev = history.length >= 2 ? history[history.length - 2] : null;
+  function dv(key) { if (!prev) return null; var a=key==='overall'?latest.overall:latest.scores[key]; var b=key==='overall'?prev.overall:prev.scores[key]; return a-b; }
+  function badge(key) { var v=dv(key); if(v===null)return''; if(v>0)return'<span class="delta delta-up">+'+v+'</span>'; if(v<0)return'<span class="delta delta-dn">'+v+'</span>'; return'<span class="delta delta-eq">&#8212;</span>'; }
+  var labels = history.map(function(h) { var dt=new Date(h.date); if(isNaN(dt.getTime()))return h.date; return (dt.getMonth()+1)+'/'+dt.getDate(); });
+  var rw = history.length!==1?'s':'';
+  var src = fromSheets?' (from Google Sheets)':' (local)';
+  el.innerHTML = '<p style="font-size:13px;color:var(--text2);margin-bottom:1rem">'+history.length+' report'+rw+' submitted'+src+'</p>'
+    +'<div class="stat-grid">'
+    +'<div class="stat-card"><div class="stat-lbl">Overall</div><div class="stat-val '+scoreColor(latest.overall)+'">'+latest.overall+' '+badge('overall')+'</div></div>'
+    +'<div class="stat-card"><div class="stat-lbl">Comprehension</div><div class="stat-val '+scoreColor(latest.scores.comprehension)+'">'+latest.scores.comprehension+' '+badge('comprehension')+'</div></div>'
+    +'<div class="stat-card"><div class="stat-lbl">Language</div><div class="stat-val '+scoreColor(latest.scores.language)+'">'+latest.scores.language+' '+badge('language')+'</div></div>'
+    +'<div class="stat-card"><div class="stat-lbl">Structure</div><div class="stat-val '+scoreColor(latest.scores.structure)+'">'+latest.scores.structure+' '+badge('structure')+'</div></div>'
+    +'</div>'
+    +'<div class="chart-legend">'
+    +'<div class="legend-item"><div class="legend-dot" style="background:#2B6CB0"></div>Overall</div>'
+    +'<div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Comprehension</div>'
+    +'<div class="legend-item"><div class="legend-dot" style="background:#BA7517"></div>Language</div>'
+    +'<div class="legend-item"><div class="legend-dot" style="background:#9B59B6"></div>Structure</div>'
+    +'</div>'
+    +'<div class="chart-wrap"><canvas id="prog-chart" role="img" aria-label="Score history chart">Score history over '+history.length+' reports.</canvas></div>'
+    +'<div class="hist-section-title">All reports</div>'
+    +'<div class="hist-list" id="hist-list"></div>'
+    +(!fromSheets?'<button class="btn-danger" onclick="confirmClear()"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>Clear local history</button>':'');
+  var histList = document.getElementById('hist-list');
+  var reversed = history.slice().reverse();
+  for (var i=0;i<reversed.length;i++) {
+    var h=reversed[i];
+    var dt=new Date(h.date);
+    var dtStr=isNaN(dt.getTime())?h.date:dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    var div=document.createElement('div');
+    div.className='hist-item';
+    div.innerHTML='<div class="hist-meta"><div class="hist-book">'+esc(h.title)+'</div>'
+      +'<div class="hist-badges">'
+      +'<span class="hbadge">Comp: '+h.scores.comprehension+'</span>'
+      +'<span class="hbadge">Lang: '+h.scores.language+'</span>'
+      +'<span class="hbadge">Struct: '+h.scores.structure+'</span>'
+      +'</div></div>'
+      +'<div class="hist-right"><div class="hist-score '+scoreColor(h.overall)+'">'+h.overall+'</div>'
+      +'<div class="hist-date">'+dtStr+'</div></div>';
+    (function(entry){ div.onclick=function(){ showTab('submit'); renderResult(entry.result,entry.title,entry.author,entry.date); window.scrollTo(0,0); }; })(h);
     histList.appendChild(div);
-  });
-
-  if (progressChart) { progressChart.destroy(); progressChart = null; }
-  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  progressChart = new Chart(document.getElementById('prog-chart'), {
-    type: 'line',
-    data: { labels, datasets: [
-      { label:'Overall', data:history.map(h=>h.overall), borderColor:'#2B6CB0', backgroundColor:'transparent', pointBackgroundColor:'#2B6CB0', tension:0.35, borderWidth:2.5, pointRadius:4 },
-      { label:'Comprehension', data:history.map(h=>h.scores.comprehension), borderColor:'#1D9E75', backgroundColor:'transparent', pointBackgroundColor:'#1D9E75', tension:0.35, borderWidth:1.5, borderDash:[5,3], pointRadius:3 },
-      { label:'Language', data:history.map(h=>h.scores.language), borderColor:'#BA7517', backgroundColor:'transparent', pointBackgroundColor:'#BA7517', tension:0.35, borderWidth:1.5, borderDash:[5,3], pointRadius:3 },
-      { label:'Structure', data:history.map(h=>h.scores.structure), borderColor:'#9B59B6', backgroundColor:'transparent', pointBackgroundColor:'#9B59B6', tension:0.35, borderWidth:1.5, borderDash:[5,3], pointRadius:3 }
+  }
+  if (progressChart) { progressChart.destroy(); progressChart=null; }
+  var isDark=matchMedia('(prefers-color-scheme: dark)').matches;
+  var gridC=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
+  var tickC=isDark?'#666':'#999';
+  progressChart=new Chart(document.getElementById('prog-chart'),{
+    type:'line',
+    data:{labels:labels,datasets:[
+      {label:'Overall',data:history.map(function(h){return h.overall;}),borderColor:'#2B6CB0',backgroundColor:'transparent',pointBackgroundColor:'#2B6CB0',tension:0.35,borderWidth:2.5,pointRadius:4},
+      {label:'Comprehension',data:history.map(function(h){return h.scores.comprehension;}),borderColor:'#1D9E75',backgroundColor:'transparent',pointBackgroundColor:'#1D9E75',tension:0.35,borderWidth:1.5,borderDash:[5,3],pointRadius:3},
+      {label:'Language',data:history.map(function(h){return h.scores.language;}),borderColor:'#BA7517',backgroundColor:'transparent',pointBackgroundColor:'#BA7517',tension:0.35,borderWidth:1.5,borderDash:[5,3],pointRadius:3},
+      {label:'Structure',data:history.map(function(h){return h.scores.structure;}),borderColor:'#9B59B6',backgroundColor:'transparent',pointBackgroundColor:'#9B59B6',tension:0.35,borderWidth:1.5,borderDash:[5,3],pointRadius:3}
     ]},
-    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{
-      x:{ ticks:{color:isDark?'#666':'#999',font:{size:11}}, grid:{color:isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}, border:{display:false} },
-      y:{ min:0, max:100, ticks:{color:isDark?'#666':'#999',font:{size:11},stepSize:25}, grid:{color:isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}, border:{display:false} }
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:tickC,font:{size:11}},grid:{color:gridC},border:{display:false}},
+      y:{min:0,max:100,ticks:{color:tickC,font:{size:11},stepSize:25},grid:{color:gridC},border:{display:false}}
     }}
   });
 }
 
 function confirmClear() {
-  if (confirm('Clear all saved progress? This cannot be undone.')) { localStorage.removeItem(STORAGE_KEY); renderProgress(); }
+  var msg = 'Clear all saved progress?';
+  var sheetsUrl = loadSheetsUrl();
+  var studentName = loadStudentName();
+  if (sheetsUrl && studentName) {
+    msg = 'Clear all progress for ' + studentName + '? This will delete from Google Sheets AND local storage and cannot be undone.';
+  }
+  if (!confirm(msg)) return;
+  localStorage.removeItem(STORAGE_KEY);
+  if (sheetsUrl && studentName) {
+    fetch(sheetsUrl + '?action=delete&name=' + encodeURIComponent(studentName))
+      .then(function() { renderProgress(); })
+      .catch(function(err) { console.warn('Sheets delete failed:', err.message); renderProgress(); });
+  } else {
+    renderProgress();
+  }
 }
 
 (function(){
-  const key = loadKey();
-  if (key) { document.getElementById('setup-screen').style.display='none'; document.getElementById('main-app').style.display='block'; }
+  var key = loadKey();
+  if (key) { document.getElementById('setup-screen').style.display='none'; document.getElementById('main-app').style.display='block'; updateNameBadge(); }
   else {
     document.getElementById('sheets-url-input').value = loadSheetsUrl();
-    document.getElementById('api-key-input').addEventListener('keydown', e => { if(e.key==='Enter') saveKey(); });
+    document.getElementById('student-name-input').value = loadStudentName();
+    document.getElementById('api-key-input').addEventListener('keydown', function(e) { if(e.key==='Enter') saveKey(); });
   }
+  initDropZone();
 })();
 </script>
 </body>
