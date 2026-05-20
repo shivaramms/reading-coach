@@ -186,27 +186,36 @@ input[type=file] { display: none; }
       <svg viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
     </div>
     <h1>Reading Coach</h1>
-    <p>An AI tutor that evaluates book reports, gives friendly feedback, and tracks progress over time. Enter your Anthropic API key to get started — it's saved only on this device.</p>
-    <label class="field-label" for="student-name-input">Student name</label>
-    <input type="text" id="student-name-input" placeholder="e.g. Maya" autocomplete="off" style="margin-bottom:6px">
-    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Used to identify this student's reports in Google Sheets. Required if sharing a Sheet across multiple students.</p>
+    <p>An AI reading tutor that evaluates book reports, gives friendly feedback, and tracks your progress over time.</p>
 
-    <label class="field-label" for="api-key-input">Anthropic API key</label>
-    <div class="api-input-wrap">
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      <button class="eye-btn" onclick="toggleKeyVisibility()" title="Show/hide key">👁</button>
-    </div>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Stored only on this device.</p>
-
-    <label class="field-label" for="sheets-url-input">Google Sheets URL <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
-    <input type="text" id="sheets-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:6px">
-    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Paste your Apps Script web app URL here to automatically log every evaluation to a Google Sheet. <a href="#" onclick="showSheetsHelp();return false;">How to set this up →</a></p>
+    <label class="field-label" for="student-name-input">What's your name?</label>
+    <input type="text" id="student-name-input" placeholder="e.g. Saanvi" autocomplete="given-name" style="margin-bottom:6px;font-size:17px">
+    <p style="font-size:12px;color:var(--text3);margin-bottom:1.5rem">This is used to save and track your reports.</p>
 
     <button class="btn-primary" onclick="saveKey()">
       <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"/></svg>
-      Save and open Reading Coach
+      Let's go!
     </button>
-    <p style="font-size:12px;color:var(--red);margin-top:10px;display:none" id="key-error">Please enter a valid API key (starts with sk-ant-).</p>
+    <p style="font-size:12px;color:var(--red);margin-top:10px;display:none" id="key-error">Please enter your name first.</p>
+
+    <!-- Advanced section for parent setup -->
+    <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <button onclick="toggleAdvanced()" style="background:none;border:none;font-size:13px;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px;padding:0" id="advanced-toggle">
+        <svg id="advanced-chevron" viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform 0.2s"><polyline points="9 18 15 12 9 6"/></svg>
+        Parent / advanced settings
+      </button>
+      <div id="advanced-section" style="display:none;margin-top:1rem">
+        <label class="field-label" for="api-key-input">Anthropic API key</label>
+        <div class="api-input-wrap">
+          <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKeyVisibility()" title="Show/hide key">👁</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-top:4px;margin-bottom:1rem">Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Stored only on this device.</p>
+        <label class="field-label" for="sheets-url-input">Google Sheets URL</label>
+        <input type="text" id="sheets-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:4px">
+        <p style="font-size:12px;color:var(--text3);margin-top:4px">Paste your Apps Script web app URL here to sync reports to Google Sheets.</p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -298,7 +307,8 @@ function doGet(e) {
         weekly_challenge:r[11], encouragement:r[12],
         comprehension_feedback:r[13], language_feedback:r[14],
         structure_feedback:r[15], mechanics_feedback:r[16],
-        spelling_corrections:r[17]?r[17].toString():'[]'
+        spelling_corrections:r[17]?r[17].toString():'[]',
+        length_feedback:r[18]?r[18].toString():''
       });
     }
     return ContentService
@@ -335,7 +345,7 @@ function doGet(e) {
       </div>
       <div>
         <span class="app-title">Reading Coach</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:7px">v3.4</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:7px">v4.5</span>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -368,6 +378,10 @@ function doGet(e) {
         <label class="field-label" for="bauthor">Author</label>
         <input type="text" id="bauthor" placeholder="e.g. E.B. White">
       </div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="bchapters">Chapters / pages covered <span style="font-weight:400;color:var(--text3)">(helps give better feedback)</span></label>
+      <input type="text" id="bchapters" placeholder="e.g. Chapters 1–5, or whole book, or pages 10–45">
     </div>
 
     <div class="mode-toggle">
@@ -438,23 +452,34 @@ const STORAGE_KEY = 'reading-coach-history-v1';
 const API_KEY_STORAGE = 'reading-coach-api-key';
 const SHEETS_URL_STORAGE = 'reading-coach-sheets-url';
 const STUDENT_NAME_STORAGE = 'reading-coach-student-name';
+
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxIMZz_DKbp2r48yqIxlwWLegcJJr-IUF6mK3psSHj_gCb1FAT4HumzMy6c6MYl4EL9nA/exec';
+
 let currentMode = 'type';
 let pages = [];
 let progressChart = null;
 
 function loadKey() { return localStorage.getItem(API_KEY_STORAGE) || ''; }
-function saveKeyToStorage(k) { localStorage.setItem(API_KEY_STORAGE, k); }
-function loadSheetsUrl() { return localStorage.getItem(SHEETS_URL_STORAGE) || ''; }
-function saveSheetsUrl(u) { if (u) localStorage.setItem(SHEETS_URL_STORAGE, u); else localStorage.removeItem(SHEETS_URL_STORAGE); }
+function saveKeyToStorage(k) { if (k && k.startsWith('sk-')) localStorage.setItem(API_KEY_STORAGE, k); }
+function loadSheetsUrl() { return localStorage.getItem(SHEETS_URL_STORAGE) || DEFAULT_SHEETS_URL; }
+function saveSheetsUrl(u) { if (u) localStorage.setItem(SHEETS_URL_STORAGE, u); }
 function loadStudentName() { return localStorage.getItem(STUDENT_NAME_STORAGE) || ''; }
 function saveStudentName(n) { if (n) localStorage.setItem(STUDENT_NAME_STORAGE, n); else localStorage.removeItem(STUDENT_NAME_STORAGE); }
-function loadHistory() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
+function loadHistory() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; } }
 function saveHistory(h) { localStorage.setItem(STORAGE_KEY, JSON.stringify(h)); }
+
+function toggleAdvanced() {
+  var sec = document.getElementById('advanced-section');
+  var chev = document.getElementById('advanced-chevron');
+  var open = sec.style.display === 'none';
+  sec.style.display = open ? 'block' : 'none';
+  chev.style.transform = open ? 'rotate(90deg)' : '';
+}
 
 function showSheetsHelp() { document.getElementById('sheets-modal').style.display = 'flex'; }
 function copyScript() {
-  const code = document.getElementById('apps-script-code').textContent;
-  navigator.clipboard.writeText(code).then(() => alert('Script copied! Paste it into Apps Script.')).catch(() => alert('Copy failed — please select and copy the code manually.'));
+  var code = document.getElementById('apps-script-code').textContent;
+  navigator.clipboard.writeText(code).then(function() { alert('Script copied! Paste it into Apps Script.'); }).catch(function() { alert('Copy failed — please select and copy the code manually.'); });
 }
 
 async function postToSheets(entry, result) {
@@ -464,7 +489,7 @@ async function postToSheets(entry, result) {
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         name: loadStudentName() || 'Student',
         date: new Date(entry.date).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
@@ -483,6 +508,7 @@ async function postToSheets(entry, result) {
         language_feedback: result.language_feedback,
         structure_feedback: result.structure_feedback,
         mechanics_feedback: result.mechanics_feedback,
+        length_feedback: result.length_feedback || '',
         spelling_corrections: JSON.stringify(result.spelling_corrections || [])
       })
     });
@@ -504,20 +530,29 @@ function updateNameBadge() {
 }
 
 function saveKey() {
-  const k = document.getElementById('api-key-input').value.trim();
-  if (!k.startsWith('sk-')) { document.getElementById('key-error').style.display = 'block'; return; }
-  saveKeyToStorage(k);
-  saveSheetsUrl(document.getElementById('sheets-url-input').value.trim());
-  saveStudentName(document.getElementById('student-name-input').value.trim());
+  var name = document.getElementById('student-name-input').value.trim();
+  var key = document.getElementById('api-key-input').value.trim() || loadKey();
+  var errEl = document.getElementById('key-error');
+  if (!name) { errEl.textContent = 'Please enter your name first.'; errEl.style.display = 'block'; return; }
+  if (!key || !key.startsWith('sk-')) { errEl.textContent = 'Please enter a valid API key in the settings below.'; errEl.style.display = 'block'; var sec = document.getElementById('advanced-section'); if (sec) sec.style.display = 'block'; document.getElementById('advanced-chevron').style.transform = 'rotate(90deg)'; return; }
+  errEl.style.display = 'none';
+  saveStudentName(name);
+  saveKeyToStorage(key);
+  var sheetsUrl = document.getElementById('sheets-url-input').value.trim();
+  if (sheetsUrl) saveSheetsUrl(sheetsUrl);
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'block';
   updateNameBadge();
 }
 
 function openSettings() {
-  document.getElementById('api-key-input').value = loadKey();
-  document.getElementById('sheets-url-input').value = loadSheetsUrl();
   document.getElementById('student-name-input').value = loadStudentName();
+  document.getElementById('api-key-input').value = localStorage.getItem(API_KEY_STORAGE) || '';
+  document.getElementById('sheets-url-input').value = localStorage.getItem(SHEETS_URL_STORAGE) || DEFAULT_SHEETS_URL;
+  var sec = document.getElementById('advanced-section');
+  var chev = document.getElementById('advanced-chevron');
+  if (sec) { sec.style.display = 'none'; }
+  if (chev) { chev.style.transform = ''; }
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('main-app').style.display = 'none';
 }
@@ -626,6 +661,7 @@ function initDropZone() {
 function clearForm() {
   document.getElementById('btitle').value = '';
   document.getElementById('bauthor').value = '';
+  document.getElementById('bchapters').value = '';
   document.getElementById('report-text').value = '';
   pages = [];
   document.getElementById('pages-area').style.display = 'none';
@@ -644,6 +680,7 @@ async function evaluate() {
 
   const title = document.getElementById('btitle').value.trim();
   const author = document.getElementById('bauthor').value.trim();
+  const chapters = document.getElementById('bchapters').value.trim();
   const reportText = document.getElementById('report-text').value.trim();
 
   if (currentMode === 'type' && !reportText) { alert('Please type or paste a book report first.'); return; }
@@ -662,11 +699,45 @@ async function evaluate() {
     photoNote = ' The report was submitted as ' + (pages.length > 1 ? pages.length + ' photos (one per page) in order' : 'a photo') + '. Carefully read ALL handwritten or printed text across every image before evaluating. Treat them as one continuous report.';
   }
 
-  var bookContext = (title && title !== 'Unknown')
-    ? 'The book being reported on is "' + title + '"' + (author && author !== 'Unknown' ? ' by ' + author : '') + '. Use your knowledge of this specific book to evaluate the report — check whether the student mentions key characters, major plot events, central themes, and important cause-and-effect moments from the actual story. Call out specifically what they missed or got right about THIS book. If you recognize the book, name specific characters, scenes, or moments in your feedback. If you don\'t recognize the book, evaluate based solely on what the student wrote.'
-    : 'No book title was provided. Evaluate based solely on what the student wrote.';
+  var chapterNote = chapters ? ' The student has covered: ' + chapters + '.' : ' No chapter or page range was provided.';
 
-  var systemPrompt = 'You are a warm, encouraging reading and ELA tutor evaluating a 10-year-old student\'s book report. The student is at the 78th percentile on their EOG test. Their main weakness is answering passage-based questions (inference, cause-and-effect, character motivation). Your job is to give a detailed, friendly, and actionable evaluation.' + photoNote + '\n\n' + bookContext + '\n\nEvaluate across 4 skill dimensions, score each 0\u2013100:\n1. Comprehension & Passage Response (MOST important): understanding events, why characters act as they do, cause-and-effect, inference \u2014 the skills needed to answer passage questions on tests. Use your knowledge of the actual book to judge whether the student addressed the key moments.\n2. Language & Vocabulary: word choice, descriptive richness, sentence variety.\n3. Writing Structure & Organization: clear intro/body/conclusion, logical flow.\n4. Mechanics & Grammar: spelling, punctuation, grammar accuracy.\n\nRespond ONLY with valid JSON (no markdown fences, no preamble):\n{"overall":<0-100>,"scores":{"comprehension":<0-100>,"language":<0-100>,"structure":<0-100>,"mechanics":<0-100>},"summary":"<2-3 warm encouraging sentences>","comprehension_feedback":"<2-3 specific sentences referencing actual book events/characters where possible>","language_feedback":"<2-3 specific sentences>","structure_feedback":"<2-3 specific sentences>","mechanics_feedback":"<1-2 sentences>","spelling_corrections":[{"wrong":"<misspelled word>","right":"<correct spelling>"}],"top_tips":["<tip 1>","<tip 2>","<tip 3>"],"weekly_challenge":"<short fun exercise>","encouragement":"<one warm final sentence>"}\n\nFor spelling_corrections: list EVERY misspelled word found. If none, return [].';
+  var bookContext = (title && title !== 'Unknown')
+    ? 'The book being reported on is "' + title + '"' + (author && author !== 'Unknown' ? ' by ' + author : '') + '.' + chapterNote + ' Use your knowledge of this specific book to evaluate the report — check whether the student mentions key characters, major plot events, central themes, and important cause-and-effect moments from the portion they read. If you recognize the book, name specific characters, scenes, or moments from those chapters in your feedback. If you don\'t recognize the book, evaluate based solely on what the student wrote.'
+    : 'No book title was provided.' + chapterNote + ' Evaluate based solely on what the student wrote.';
+
+  var lengthGuide = chapters
+    ? 'The student covered ' + chapters + '. Use this to calibrate expected report length and depth — e.g. 4 chapters warrants at least 2-3 solid paragraphs covering the main events, characters met, and key moments from those specific chapters. If the report is too short for the amount covered, note this warmly.'
+    : 'No chapter range was given. Estimate appropriate length based on the report content. Encourage the student to always specify which chapters they covered in future reports so feedback can be more precise.';
+
+  var rubric = 'SCORING RUBRIC — apply these criteria precisely and consistently:\n\n' +
+    'COMPREHENSION & DETAIL (score this first, it anchors the others):\n' +
+    '90-100: Names 3+ specific characters, describes 3+ plot events with cause-and-effect, explains WHY characters acted as they did, includes inferences or personal insight\n' +
+    '75-89: Names key characters, describes main plot events, attempts some cause-and-effect but may miss motivations\n' +
+    '60-74: Mentions characters and events but mostly surface-level retelling, little WHY explanation\n' +
+    '40-59: Very general summary, few specifics, no cause-and-effect\n' +
+    '0-39: Barely mentions the story, too short or off-topic to evaluate\n\n' +
+    'LANGUAGE & VOCABULARY:\n' +
+    '90-100: Varied sentence starts, strong descriptive words, 2+ vivid adjectives or strong verbs per paragraph\n' +
+    '75-89: Some descriptive language, occasional variety, mostly clear phrasing\n' +
+    '60-74: Simple word choice, repetitive sentence structure, but readable\n' +
+    '40-59: Very basic vocabulary, monotonous sentences\n' +
+    '0-39: Difficult to understand, extremely limited vocabulary\n\n' +
+    'STRUCTURE & ORGANIZATION:\n' +
+    '90-100: Clear intro (title/author/topic), developed body paragraphs, conclusion with opinion; length appropriate for chapters covered\n' +
+    '75-89: Recognizable intro and conclusion, organized body, good length\n' +
+    '60-74: Some structure visible but intro or conclusion weak; adequate length\n' +
+    '40-59: Little organization, one or two thin paragraphs for multiple chapters\n' +
+    '0-39: No structure, one sentence or fragment\n\n' +
+    'MECHANICS & GRAMMAR:\n' +
+    '90-100: Zero or one minor error\n' +
+    '75-89: 2-3 minor errors, meaning always clear\n' +
+    '60-74: Several errors but still readable\n' +
+    '40-59: Frequent errors affecting readability\n' +
+    '0-39: Pervasive errors making comprehension difficult\n\n' +
+    'OVERALL: weighted average — Comprehension 40%, Structure 25%, Language 20%, Mechanics 15%. Round to nearest whole number.\n\n' +
+    'IMPORTANT: Score based ONLY on the rubric above. Do not adjust scores up or down based on encouragement or tone. Apply the same rubric every time for the same text.';
+
+  var systemPrompt = 'You are a precise, consistent reading and ELA evaluator for a 10-year-old student. Your job is to score book reports using a fixed rubric and give warm, actionable feedback. Apply scores mechanically from the rubric first, then write feedback.' + photoNote + '\n\n' + bookContext + '\n\n' + rubric + '\n\nLength and depth guidance:\n' + lengthGuide + '\nDo NOT mention tests, EOG, or reading goals in feedback — focus only on making writing richer.\n\nScoring process:\n1. Read the full report\n2. Score each dimension using ONLY the rubric bands above\n3. Calculate overall as weighted average (Comp 40% + Struct 25% + Lang 20% + Mech 15%)\n4. Write feedback that matches the scores — do not contradict them\n\nRespond ONLY with valid JSON (no markdown fences, no preamble):\n{"overall":<0-100>,"scores":{"comprehension":<0-100>,"language":<0-100>,"structure":<0-100>,"mechanics":<0-100>},"summary":"<2-3 warm encouraging sentences>","length_feedback":"<1-2 sentences on length appropriateness for chapters covered — if too short say what to add; never mention tests>","comprehension_feedback":"<2-3 specific sentences citing actual characters/events from the report>","language_feedback":"<2-3 specific sentences>","structure_feedback":"<2-3 specific sentences>","mechanics_feedback":"<1-2 sentences>","spelling_corrections":[{"wrong":"<misspelled word>","right":"<correct spelling>"}],"top_tips":["<specific actionable tip 1>","<tip 2>","<tip 3>"],"weekly_challenge":"<specific fun exercise based on their weakest area>","encouragement":"<one warm final sentence>"}\n\nFor spelling_corrections: list EVERY misspelled common word (ignore proper nouns — character names, place names, author names, and book titles are exempt even if spelled unusually). Only flag misspelled regular words like verbs, adjectives, adverbs, and common nouns. If none, return [].';
   var userContent;
   if (currentMode === 'photo') {
     userContent = [];
@@ -675,28 +746,28 @@ async function evaluate() {
       userContent.push({ type: 'image', source: { type: 'base64', media_type: pg.mime, data: pg.base64 } });
       userContent.push({ type: 'text', text: pages.length > 1 ? '[Page ' + (pi+1) + ' of ' + pages.length + ']' : '' });
     }
-    userContent.push({ type: 'text', text: 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + '. Please read all the text across the ' + (pages.length > 1 ? pages.length + ' pages' : 'page') + ' above and evaluate the book report.' });
+    userContent.push({ type: 'text', text: 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + (chapters ? '\nChapters/pages covered: ' + chapters : '') + '. Please read all the text across the ' + (pages.length > 1 ? pages.length + ' pages' : 'page') + ' above and evaluate the book report.' });
   } else {
-    userContent = 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + '\n\nBook report:\n"""\n' + reportText + '\n"""';
+    userContent = 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + (chapters ? '\nChapters/pages covered: ' + chapters : '') + '\n\nBook report:\n"""\n' + reportText + '\n"""';
   }
 
   try {
-    const reqHeaders = new Headers();
-    reqHeaders.append('Content-Type', 'application/json');
-    reqHeaders.append('x-api-key', apiKey);
-    reqHeaders.append('anthropic-version', '2023-06-01');
-    reqHeaders.append('anthropic-dangerous-direct-browser-access', 'true');
-
-    const reqBody = JSON.stringify({
+    var reqBody = JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1200,
+      max_tokens: 2000,
+      temperature: 0,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }]
     });
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: reqHeaders,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: reqBody
     });
 
@@ -775,6 +846,7 @@ function renderResult(r, title, author, dateStr) {
     +   '<span class="bar-num ' + scoreColor(r.overall) + '">' + r.overall + '/100</span>'
     + '</div>'
     + '<div class="summary-quote">' + esc(r.summary) + '</div>'
+    + (r.length_feedback ? '<div style="font-size:14px;color:var(--text2);line-height:1.65;padding:10px 14px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:1.25rem;border-left:3px solid var(--amber)">' + esc(r.length_feedback) + '</div>' : '')
     + '<hr class="divider">'
     + '<div class="fb-block"><div class="fb-title" style="color:#2B6CB0"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Comprehension &amp; passage skills</div><div class="fb-body">' + esc(r.comprehension_feedback) + '</div></div>'
     + '<div class="fb-block"><div class="fb-title" style="color:var(--green)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Language &amp; vocabulary</div><div class="fb-body">' + esc(r.language_feedback) + '</div></div>'
@@ -828,6 +900,7 @@ async function renderProgress() {
               language_feedback: r.language_feedback || '',
               structure_feedback: r.structure_feedback || '',
               mechanics_feedback: r.mechanics_feedback || '',
+              length_feedback: r.length_feedback || '',
               top_tips: tips,
               weekly_challenge: r.weekly_challenge || '',
               encouragement: r.encouragement || '',
@@ -941,12 +1014,21 @@ function confirmClear() {
 }
 
 (function(){
+  var name = loadStudentName();
   var key = loadKey();
-  if (key) { document.getElementById('setup-screen').style.display='none'; document.getElementById('main-app').style.display='block'; updateNameBadge(); }
-  else {
-    document.getElementById('sheets-url-input').value = loadSheetsUrl();
-    document.getElementById('student-name-input').value = loadStudentName();
-    document.getElementById('api-key-input').addEventListener('keydown', function(e) { if(e.key==='Enter') saveKey(); });
+  if (name && key) {
+    document.getElementById('setup-screen').style.display='none';
+    document.getElementById('main-app').style.display='block';
+    updateNameBadge();
+  } else {
+    // If no API key yet, open the advanced section automatically
+    if (!key) {
+      var sec = document.getElementById('advanced-section');
+      var chev = document.getElementById('advanced-chevron');
+      if (sec) sec.style.display = 'block';
+      if (chev) chev.style.transform = 'rotate(90deg)';
+    }
+    document.getElementById('student-name-input').addEventListener('keydown', function(e) { if(e.key==='Enter') saveKey(); });
   }
   initDropZone();
 })();
