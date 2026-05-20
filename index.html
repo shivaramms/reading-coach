@@ -190,11 +190,83 @@ input[type=file] { display: none; }
       <button class="eye-btn" onclick="toggleKeyVisibility()" title="Show/hide key">👁</button>
     </div>
     <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Stored only on this device.</p>
+
+    <label class="field-label" for="sheets-url-input">Google Sheets URL <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+    <input type="text" id="sheets-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:6px">
+    <p style="font-size:12px;color:var(--text3);margin-bottom:1.25rem">Paste your Apps Script web app URL here to automatically log every evaluation to a Google Sheet. <a href="#" onclick="showSheetsHelp();return false;">How to set this up →</a></p>
+
     <button class="btn-primary" onclick="saveKey()">
       <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 13l4 4L19 7"/></svg>
       Save and open Reading Coach
     </button>
     <p style="font-size:12px;color:var(--red);margin-top:10px;display:none" id="key-error">Please enter a valid API key (starts with sk-ant-).</p>
+  </div>
+</div>
+
+<!-- SHEETS HELP MODAL -->
+<div id="sheets-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center;padding:1.5rem">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:2rem;max-width:480px;width:100%;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+      <h2 style="font-family:'Lora',serif;font-size:18px;font-weight:500">Set up Google Sheets logging</h2>
+      <button onclick="document.getElementById('sheets-modal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1">×</button>
+    </div>
+    <div style="font-size:14px;color:var(--text2);line-height:1.75">
+      <p style="margin-bottom:1rem">This uses a <strong style="color:var(--text)">Google Apps Script</strong> — a tiny piece of code that runs inside Google and writes to your Sheet. No extra accounts needed, just a Google account.</p>
+      <p style="font-weight:500;color:var(--text);margin-bottom:6px">Step 1 — Create the Sheet</p>
+      <p style="margin-bottom:1rem">Go to <a href="https://sheets.new" target="_blank" style="color:var(--accent)">sheets.new</a> to create a new Google Sheet. Name it "Reading Coach".</p>
+      <p style="font-weight:500;color:var(--text);margin-bottom:6px">Step 2 — Open Apps Script</p>
+      <p style="margin-bottom:1rem">In your Sheet, click <strong style="color:var(--text)">Extensions → Apps Script</strong>. Delete any code in the editor and paste this:</p>
+      <pre id="apps-script-code" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;font-size:12px;overflow-x:auto;white-space:pre;margin-bottom:8px;border:1px solid var(--border)">function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet()
+                  .getActiveSheet();
+
+    // Add header row if sheet is empty
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        'Date', 'Book', 'Author',
+        'Overall', 'Comprehension',
+        'Language', 'Structure', 'Mechanics',
+        'Summary', 'Top Tips', 'Weekly Challenge'
+      ]);
+      sheet.getRange(1, 1, 1, 11)
+           .setFontWeight('bold')
+           .setBackground('#E8F5E9');
+    }
+
+    sheet.appendRow([
+      data.date, data.title, data.author,
+      data.overall,
+      data.comprehension, data.language,
+      data.structure, data.mechanics,
+      data.summary,
+      (data.top_tips || []).join(' | '),
+      data.weekly_challenge
+    ]);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'ok'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'error',msg:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}</pre>
+      <button onclick="copyScript()" style="font-size:12px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:1rem">Copy script</button>
+      <p style="font-weight:500;color:var(--text);margin-bottom:6px">Step 3 — Deploy it</p>
+      <p style="margin-bottom:6px">Click <strong style="color:var(--text)">Deploy → New deployment</strong>. Set:</p>
+      <ul style="margin-left:1.25rem;margin-bottom:1rem">
+        <li>Type: <strong style="color:var(--text)">Web app</strong></li>
+        <li>Execute as: <strong style="color:var(--text)">Me</strong></li>
+        <li>Who has access: <strong style="color:var(--text)">Anyone</strong></li>
+      </ul>
+      <p style="margin-bottom:1rem">Click <strong style="color:var(--text)">Deploy</strong>, approve permissions, then copy the <strong style="color:var(--text)">Web app URL</strong>.</p>
+      <p style="font-weight:500;color:var(--text);margin-bottom:6px">Step 4 — Paste the URL</p>
+      <p>Paste that URL into the "Google Sheets URL" field in Reading Coach settings and save. Every evaluation will now appear as a new row in your Sheet automatically.</p>
+    </div>
+    <button onclick="document.getElementById('sheets-modal').style.display='none'" class="btn-primary" style="margin-top:1.5rem">Got it</button>
   </div>
 </div>
 
@@ -302,14 +374,50 @@ input[type=file] { display: none; }
 <script>
 const STORAGE_KEY = 'reading-coach-history-v1';
 const API_KEY_STORAGE = 'reading-coach-api-key';
+const SHEETS_URL_STORAGE = 'reading-coach-sheets-url';
 let currentMode = 'type';
 let pages = []; // array of {base64, mime, dataUrl}
 let progressChart = null;
 
 function loadKey() { return localStorage.getItem(API_KEY_STORAGE) || ''; }
 function saveKeyToStorage(k) { localStorage.setItem(API_KEY_STORAGE, k); }
+function loadSheetsUrl() { return localStorage.getItem(SHEETS_URL_STORAGE) || ''; }
+function saveSheetsUrl(u) { if (u) localStorage.setItem(SHEETS_URL_STORAGE, u); else localStorage.removeItem(SHEETS_URL_STORAGE); }
 function loadHistory() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
 function saveHistory(h) { localStorage.setItem(STORAGE_KEY, JSON.stringify(h)); }
+
+function showSheetsHelp() { document.getElementById('sheets-modal').style.display = 'flex'; }
+function copyScript() {
+  const code = document.getElementById('apps-script-code').textContent;
+  navigator.clipboard.writeText(code).then(() => alert('Script copied! Paste it into Apps Script.')).catch(() => alert('Copy failed — please select and copy the code manually.'));
+}
+
+async function postToSheets(entry, result) {
+  const url = loadSheetsUrl();
+  if (!url) return; // silently skip if not configured
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors', // Apps Script requires no-cors from external origins
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: new Date(entry.date).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+        title: entry.title,
+        author: entry.author,
+        overall: entry.overall,
+        comprehension: entry.scores.comprehension,
+        language: entry.scores.language,
+        structure: entry.scores.structure,
+        mechanics: entry.scores.mechanics,
+        summary: result.summary,
+        top_tips: result.top_tips,
+        weekly_challenge: result.weekly_challenge
+      })
+    });
+  } catch (err) {
+    console.warn('Sheets sync failed (non-blocking):', err.message);
+  }
+}
 
 function toggleKeyVisibility() {
   const inp = document.getElementById('api-key-input');
@@ -320,12 +428,14 @@ function saveKey() {
   const k = document.getElementById('api-key-input').value.trim();
   if (!k.startsWith('sk-')) { document.getElementById('key-error').style.display = 'block'; return; }
   saveKeyToStorage(k);
+  saveSheetsUrl(document.getElementById('sheets-url-input').value.trim());
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'block';
 }
 
 function openSettings() {
   document.getElementById('api-key-input').value = loadKey();
+  document.getElementById('sheets-url-input').value = loadSheetsUrl();
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('main-app').style.display = 'none';
 }
@@ -505,6 +615,7 @@ Respond ONLY with valid JSON (no markdown fences, no preamble):
     const history = loadHistory();
     history.push(entry);
     saveHistory(history);
+    postToSheets(entry, parsed); // fire-and-forget, non-blocking
 
     setStatus('');
     renderResult(parsed, entry.title, entry.author, entry.date);
@@ -626,7 +737,10 @@ function confirmClear() {
 (function(){
   const key = loadKey();
   if (key) { document.getElementById('setup-screen').style.display='none'; document.getElementById('main-app').style.display='block'; }
-  else { document.getElementById('api-key-input').addEventListener('keydown', e => { if(e.key==='Enter') saveKey(); }); }
+  else {
+    document.getElementById('sheets-url-input').value = loadSheetsUrl();
+    document.getElementById('api-key-input').addEventListener('keydown', e => { if(e.key==='Enter') saveKey(); });
+  }
 })();
 </script>
 </body>
