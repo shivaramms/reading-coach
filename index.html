@@ -231,25 +231,24 @@ input[type=file] { display: none; }
 
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
-        'Name', 'Date', 'Book', 'Author',
-        'Overall', 'Comprehension',
-        'Language', 'Structure', 'Mechanics',
-        'Summary', 'Top Tips', 'Weekly Challenge'
+        'Name','Date','Book','Author',
+        'Overall','Comprehension','Language','Structure','Mechanics',
+        'Summary','Top Tips','Weekly Challenge','Encouragement',
+        'Comp Feedback','Lang Feedback','Struct Feedback','Mech Feedback','Spelling'
       ]);
-      sheet.getRange(1, 1, 1, 12)
-           .setFontWeight('bold')
-           .setBackground('#E8F5E9');
+      sheet.getRange(1,1,1,18).setFontWeight('bold').setBackground('#E8F5E9');
     }
 
     var name = data.name || 'Unknown';
     sheet.appendRow([
       name, data.date, data.title, data.author,
-      data.overall,
-      data.comprehension, data.language,
-      data.structure, data.mechanics,
-      data.summary,
+      data.overall, data.comprehension, data.language,
+      data.structure, data.mechanics, data.summary,
       (data.top_tips || []).join(' | '),
-      data.weekly_challenge
+      data.weekly_challenge, data.encouragement,
+      data.comprehension_feedback, data.language_feedback,
+      data.structure_feedback, data.mechanics_feedback,
+      data.spelling_corrections || '[]'
     ]);
 
     return ContentService
@@ -266,10 +265,8 @@ function doGet(e) {
   try {
     var action = e.parameter.action || 'get';
     var name = e.parameter.name || '';
-    var sheet = SpreadsheetApp.getActiveSpreadsheet()
-                  .getActiveSheet();
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
-    // DELETE rows for a student
     if (action === 'delete' && name) {
       var rows = sheet.getDataRange().getValues();
       for (var i = rows.length - 1; i >= 1; i--) {
@@ -282,7 +279,6 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // GET rows for a student
     var rows = sheet.getDataRange().getValues();
     if (rows.length <= 1) {
       return ContentService
@@ -291,15 +287,18 @@ function doGet(e) {
     }
     var results = [];
     for (var i = 1; i < rows.length; i++) {
-      var row = rows[i];
-      var rowName = row[0] ? row[0].toString() : '';
+      var r = rows[i];
+      var rowName = r[0] ? r[0].toString() : '';
       if (name && rowName.toLowerCase() !== name.toLowerCase()) continue;
       results.push({
-        name: row[0], date: row[1], title: row[2],
-        author: row[3], overall: row[4],
-        comprehension: row[5], language: row[6],
-        structure: row[7], mechanics: row[8],
-        summary: row[9]
+        name:r[0], date:r[1], title:r[2], author:r[3],
+        overall:r[4], comprehension:r[5], language:r[6],
+        structure:r[7], mechanics:r[8], summary:r[9],
+        top_tips:r[10]?r[10].toString().split(' | '):[],
+        weekly_challenge:r[11], encouragement:r[12],
+        comprehension_feedback:r[13], language_feedback:r[14],
+        structure_feedback:r[15], mechanics_feedback:r[16],
+        spelling_corrections:r[17]?r[17].toString():'[]'
       });
     }
     return ContentService
@@ -336,7 +335,7 @@ function doGet(e) {
       </div>
       <div>
         <span class="app-title">Reading Coach</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:7px">v3.3</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:7px">v3.4</span>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -478,7 +477,13 @@ async function postToSheets(entry, result) {
         mechanics: entry.scores.mechanics,
         summary: result.summary,
         top_tips: result.top_tips,
-        weekly_challenge: result.weekly_challenge
+        weekly_challenge: result.weekly_challenge,
+        encouragement: result.encouragement,
+        comprehension_feedback: result.comprehension_feedback,
+        language_feedback: result.language_feedback,
+        structure_feedback: result.structure_feedback,
+        mechanics_feedback: result.mechanics_feedback,
+        spelling_corrections: JSON.stringify(result.spelling_corrections || [])
       })
     });
   } catch (err) {
@@ -806,13 +811,28 @@ async function renderProgress() {
       if (Array.isArray(rows) && rows.length > 0) {
         fromSheets = true;
         history = rows.map(function(r) {
+          var sc = { comprehension:Number(r.comprehension)||0, language:Number(r.language)||0, structure:Number(r.structure)||0, mechanics:Number(r.mechanics)||0 };
+          var spelling = [];
+          try { spelling = JSON.parse(r.spelling_corrections || '[]'); } catch(ex) {}
+          var tips = Array.isArray(r.top_tips) ? r.top_tips : [];
           return {
             date: r.date ? r.date.toString() : '',
             title: r.title || 'Book report',
             author: r.author || '',
             overall: Number(r.overall) || 0,
-            scores: { comprehension: Number(r.comprehension)||0, language: Number(r.language)||0, structure: Number(r.structure)||0, mechanics: Number(r.mechanics)||0 },
-            result: { summary: r.summary||'', top_tips:[], weekly_challenge:'', encouragement:'', comprehension_feedback:'', language_feedback:'', structure_feedback:'', mechanics_feedback:'', spelling_corrections:[], scores:{ comprehension:Number(r.comprehension)||0, language:Number(r.language)||0, structure:Number(r.structure)||0, mechanics:Number(r.mechanics)||0 }, overall:Number(r.overall)||0 }
+            scores: sc,
+            result: {
+              overall: Number(r.overall)||0, scores: sc,
+              summary: r.summary || '',
+              comprehension_feedback: r.comprehension_feedback || '',
+              language_feedback: r.language_feedback || '',
+              structure_feedback: r.structure_feedback || '',
+              mechanics_feedback: r.mechanics_feedback || '',
+              top_tips: tips,
+              weekly_challenge: r.weekly_challenge || '',
+              encouragement: r.encouragement || '',
+              spelling_corrections: spelling
+            }
           };
         });
       }
@@ -863,7 +883,24 @@ async function renderProgress() {
       +'</div></div>'
       +'<div class="hist-right"><div class="hist-score '+scoreColor(h.overall)+'">'+h.overall+'</div>'
       +'<div class="hist-date">'+dtStr+'</div></div>';
-    (function(entry){ div.onclick=function(){ showTab('submit'); renderResult(entry.result,entry.title,entry.author,entry.date); window.scrollTo(0,0); }; })(h);
+    (function(entry){
+      div.onclick = function() {
+        showTab('submit');
+        // Try to find the full result in localStorage first
+        var fullResult = entry.result;
+        if (!fullResult.comprehension_feedback) {
+          var local = loadHistory();
+          for (var j = 0; j < local.length; j++) {
+            if (local[j].title === entry.title && local[j].result && local[j].result.comprehension_feedback) {
+              fullResult = local[j].result;
+              break;
+            }
+          }
+        }
+        renderResult(fullResult, entry.title, entry.author, entry.date);
+        window.scrollTo(0,0);
+      };
+    })(h);
     histList.appendChild(div);
   }
   if (progressChart) { progressChart.destroy(); progressChart=null; }
