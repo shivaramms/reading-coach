@@ -345,7 +345,7 @@ function doGet(e) {
       </div>
       <div>
         <span class="app-title">Reading Coach</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:7px">v4.6</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:7px">v4.9</span>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -509,6 +509,8 @@ async function postToSheets(entry, result) {
         structure_feedback: result.structure_feedback,
         mechanics_feedback: result.mechanics_feedback,
         length_feedback: result.length_feedback || '',
+        progress_note: result.progress_note || '',
+        sentence_examples: JSON.stringify(result.sentence_examples || []),
         spelling_corrections: JSON.stringify(result.spelling_corrections || [])
       })
     });
@@ -694,6 +696,32 @@ async function evaluate() {
   setStatus(currentMode === 'photo' ? ('Reading ' + pageWord + ' and analyzing\u2026 this may take 15\u201330 seconds.') : 'Analyzing\u2026 this may take 10\u201320 seconds.');
   document.getElementById('result-area').innerHTML = '';
 
+  // Fetch last 3 reports from Sheets for historical context
+  var pastContext = '';
+  try {
+    var sheetsUrl = loadSheetsUrl();
+    var studentName = loadStudentName();
+    if (sheetsUrl && studentName) {
+      var histResp = await fetch(sheetsUrl + '?name=' + encodeURIComponent(studentName));
+      var histRows = await histResp.json();
+      if (Array.isArray(histRows) && histRows.length > 0) {
+        var last3 = histRows.slice(-3);
+        pastContext = 'PAST REPORT HISTORY (most recent last):\n';
+        last3.forEach(function(r, i) {
+          pastContext += '\nReport ' + (i+1) + ' (' + (r.date||'unknown date') + ') — ' + (r.title||'unknown book') + ' ' + (r.comprehension_feedback ? r.chapters||'' : '') + ':\n';
+          pastContext += '  Scores: Overall=' + r.overall + ', Comprehension=' + r.comprehension + ', Language=' + r.language + ', Structure=' + r.structure + ', Mechanics=' + r.mechanics + '\n';
+          if (r.comprehension_feedback) pastContext += '  Comprehension feedback: ' + r.comprehension_feedback + '\n';
+          if (r.language_feedback) pastContext += '  Language feedback: ' + r.language_feedback + '\n';
+          if (r.top_tips && r.top_tips.length) pastContext += '  Tips given: ' + (Array.isArray(r.top_tips) ? r.top_tips.join(' | ') : r.top_tips) + '\n';
+          if (r.spelling_corrections && r.spelling_corrections !== '[]') pastContext += '  Spelling corrections: ' + r.spelling_corrections + '\n';
+        });
+        pastContext += '\nUse this history to:\n1. Note any improvement or regression in scores compared to last time\n2. Identify if the same mistakes (spelling, missing cause-and-effect, weak vocabulary) are repeating\n3. Acknowledge specific progress — e.g. "Last time you struggled with X, and this time you did much better!"\n4. If the same tip was given before and not acted on, note it gently\n';
+      }
+    }
+  } catch(e) {
+    console.warn('Could not fetch history for context:', e.message);
+  }
+
   var photoNote = '';
   if (currentMode === 'photo') {
     photoNote = ' The report was submitted as ' + (pages.length > 1 ? pages.length + ' photos (one per page) in order' : 'a photo') + '. Carefully read ALL handwritten or printed text across every image before evaluating. Treat them as one continuous report.';
@@ -737,14 +765,16 @@ async function evaluate() {
     'OVERALL: weighted average — Comprehension 40%, Structure 25%, Language 20%, Mechanics 15%. Round to nearest whole number.\n\n' +
     'IMPORTANT: Score based ONLY on the rubric above. Do not adjust scores up or down based on encouragement or tone. Apply the same rubric every time for the same text.';
 
-  var systemPrompt = 'You are a precise, consistent reading and ELA evaluator for a 10-year-old student. Your job is to score book reports using a fixed rubric and give warm, actionable feedback. Apply scores mechanically from the rubric first, then write feedback.' + photoNote + '\n\n' + bookContext + '\n\n' + rubric + '\n\nLength and depth guidance:\n' + lengthGuide + '\nDo NOT mention tests, EOG, or reading goals in feedback — focus only on making writing richer.\n\nScoring process:\n1. Read the full report\n2. Score each dimension using ONLY the rubric bands above\n3. Calculate overall as weighted average (Comp 40% + Struct 25% + Lang 20% + Mech 15%)\n4. Write feedback that matches the scores — do not contradict them\n\nRespond ONLY with valid JSON (no markdown fences, no preamble):\n{"overall":<0-100>,"scores":{"comprehension":<0-100>,"language":<0-100>,"structure":<0-100>,"mechanics":<0-100>},"summary":"<2-3 warm encouraging sentences>","length_feedback":"<1-2 sentences on length appropriateness for chapters covered — if too short say what to add; never mention tests>","comprehension_feedback":"<2-3 specific sentences citing actual characters/events from the report>","language_feedback":"<2-3 specific sentences>","structure_feedback":"<2-3 specific sentences>","mechanics_feedback":"<1-2 sentences>","spelling_corrections":[{"wrong":"<misspelled word>","right":"<correct spelling>"}],"top_tips":["<specific actionable tip 1>","<tip 2>","<tip 3>"],"weekly_challenge":"<specific fun exercise based on their weakest area>","encouragement":"<one warm final sentence>"}\n\nFor spelling_corrections: list EVERY misspelled common word (ignore proper nouns — character names, place names, author names, and book titles are exempt even if spelled unusually). Only flag misspelled regular words like verbs, adjectives, adverbs, and common nouns. If none, return [].';
+  var systemPrompt = 'You are a precise, consistent reading and ELA evaluator for a 10-year-old student. Your job is to score book reports using a fixed rubric and give warm, actionable feedback. Apply scores mechanically from the rubric first, then write feedback.' + photoNote + '\n\n' + bookContext + '\n\n' + rubric + '\n\nLength and depth guidance:\n' + lengthGuide + '\nDo NOT mention tests, EOG, or reading goals in feedback.\n\n' + (pastContext ? pastContext + '\n' : '') + 'Scoring process:\n1. Read the full report\n2. Score each dimension using ONLY the rubric bands above\n3. Calculate overall as weighted average (Comp 40% + Struct 25% + Lang 20% + Mech 15%)\n4. Write feedback matching the scores\n5. If past history exists, compare and note improvements or repeated issues\n\nFor sentence_examples: pick 1-2 actual sentences from the student\'s report that could be stronger. Show original and a rewritten version. If writing is already strong, return [].\n\nRespond ONLY with valid JSON (no markdown fences, no preamble):\n{\"overall\":<0-100>,\"scores\":{\"comprehension\":<0-100>,\"language\":<0-100>,\"structure\":<0-100>,\"mechanics\":<0-100>},\"summary\":\"<2-3 warm encouraging sentences>\",\"progress_note\":\"<if past reports exist: 1-2 sentences comparing to last report — score changes, repeated or fixed mistakes. Empty string if first report>\",\"length_feedback\":\"<1-2 sentences on length for chapters covered>\",\"comprehension_feedback\":\"<2-3 specific sentences>\",\"language_feedback\":\"<2-3 specific sentences>\",\"structure_feedback\":\"<2-3 specific sentences>\",\"mechanics_feedback\":\"<1-2 sentences>\",\"spelling_corrections\":[{\"wrong\":\"<word>\",\"right\":\"<correction>\"}],\"sentence_examples\":[{\"original\":\"<exact sentence from report>\",\"improved\":\"<rewritten version>\",\"tip\":\"<one sentence explaining what changed and why>\"}],\"top_tips\":[\"<tip 1>\",\"<tip 2>\",\"<tip 3>\"],\"weekly_challenge\":\"<fun exercise based on weakest area>\",\"encouragement\":\"<one warm final sentence>\"}\n\nFor spelling_corrections: ignore proper nouns. Only flag misspelled regular words. If none, return [].';
   var userContent;
   if (currentMode === 'photo') {
     userContent = [];
     for (var pi = 0; pi < pages.length; pi++) {
       var pg = pages[pi];
       userContent.push({ type: 'image', source: { type: 'base64', media_type: pg.mime, data: pg.base64 } });
-      userContent.push({ type: 'text', text: pages.length > 1 ? '[Page ' + (pi+1) + ' of ' + pages.length + ']' : '' });
+      if (pages.length > 1) {
+        userContent.push({ type: 'text', text: '[Page ' + (pi+1) + ' of ' + pages.length + ']' });
+      }
     }
     userContent.push({ type: 'text', text: 'Book: "' + (title || 'Unknown') + '" by ' + (author || 'Unknown') + (chapters ? '\nChapters/pages covered: ' + chapters : '') + '. Please read all the text across the ' + (pages.length > 1 ? pages.length + ' pages' : 'page') + ' above and evaluate the book report.' });
   } else {
@@ -799,6 +829,36 @@ async function evaluate() {
   }
 }
 
+function buildProgressNote(note) {
+  if (!note) return '';
+  return '<div style="display:flex;gap:10px;align-items:flex-start;background:var(--accent-light);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:1.25rem">'
+    + '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:2px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+    + '<div><div style="font-size:12px;font-weight:500;color:var(--accent);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.05em">Progress since last report</div>'
+    + '<div style="font-size:14px;color:var(--text);line-height:1.65">' + esc(note) + '</div></div>'
+    + '</div>';
+}
+
+function buildSentenceExamples(examples) {
+  if (!examples || examples.length === 0) return '';
+  var html = '<div class="fb-block">'
+    + '<div class="fb-title" style="color:var(--blue);margin-bottom:10px">'
+    + '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
+    + 'Sentence makeovers</div>';
+  for (var i = 0; i < examples.length; i++) {
+    var ex = examples[i];
+    html += '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px">'
+      + '<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">Your sentence</div>'
+      + '<div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:10px;padding-left:10px;border-left:2px solid var(--border)">' + esc(ex.original) + '</div>'
+      + '<div style="font-size:12px;font-weight:500;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">Try this instead</div>'
+      + '<div style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:8px;padding-left:10px;border-left:2px solid var(--green)">' + esc(ex.improved) + '</div>'
+      + '<div style="font-size:13px;color:var(--text2);font-style:italic">' + esc(ex.tip) + '</div>'
+      + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+
 function buildSpellingSection(corrections) {
   if (!corrections || corrections.length === 0) return '';
   var pills = '';
@@ -846,6 +906,7 @@ function renderResult(r, title, author, dateStr) {
     +   '<span class="bar-num ' + scoreColor(r.overall) + '">' + r.overall + '/100</span>'
     + '</div>'
     + '<div class="summary-quote">' + esc(r.summary) + '</div>'
+    + buildProgressNote(r.progress_note)
     + (r.length_feedback ? '<div style="font-size:14px;color:var(--text2);line-height:1.65;padding:10px 14px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:1.25rem;border-left:3px solid var(--amber)">' + esc(r.length_feedback) + '</div>' : '')
     + '<hr class="divider">'
     + '<div class="fb-block"><div class="fb-title" style="color:#2B6CB0"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Comprehension &amp; passage skills</div><div class="fb-body">' + esc(r.comprehension_feedback) + '</div></div>'
@@ -853,6 +914,7 @@ function renderResult(r, title, author, dateStr) {
     + '<div class="fb-block"><div class="fb-title" style="color:var(--amber)"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Structure &amp; organization</div><div class="fb-body">' + esc(r.structure_feedback) + '</div></div>'
     + '<div class="fb-block"><div class="fb-title" style="color:var(--text2)"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Mechanics &amp; grammar</div><div class="fb-body">' + esc(r.mechanics_feedback) + '</div></div>'
     + buildSpellingSection(r.spelling_corrections)
+    + buildSentenceExamples(r.sentence_examples)
     + '<hr class="divider">'
     + '<div style="margin-bottom:1rem"><div class="fb-title" style="margin-bottom:10px;color:var(--blue)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Top 3 tips to improve</div>'
     +   '<div class="tips-list">' + tipItems + '</div>'
